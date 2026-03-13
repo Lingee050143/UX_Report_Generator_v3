@@ -1,0 +1,2999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI UX Research Report Generator</title>
+  <!-- html2pdf.js — used for PDF export of #report-container -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f4f4f6;
+      --surface:   #ffffff;
+      --sidebar-bg:#1a1d23;
+      --sidebar-txt:#8a8f9d;
+      --sidebar-active:#ffffff;
+      --border:    #e2e4e9;
+      --accent:    #3d5a99;
+      --accent-lt: #eef1f8;
+      --accent-dim:#6b84ba;
+      --text-primary:#1a1d23;
+      --text-secondary:#6b7280;
+      --text-muted:#a0a7b4;
+      --step-done:#4a9e7c;
+      --step-active:#3d5a99;
+      --step-inactive:#c8cdd8;
+      --tag-bg:#eef1f8;
+      --tag-txt:#3d5a99;
+      --input-bg:#f9f9fb;
+      --radius:10px;
+      --radius-sm:6px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      height: 52px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
+    }
+    .brand-dot {
+      width: 22px; height: 22px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .brand-dot svg { width:12px; height:12px; fill:#fff; }
+
+    /* ── STEP PILLS ── */
+    .steps-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .step-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .step-pill .step-num {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-pill.done { color: var(--step-done); }
+    .step-pill.done .step-num {
+      background: var(--step-done);
+      color: #fff;
+    }
+    .step-pill.done .step-num::after { content: '✓'; font-size: 10px; }
+    .step-pill.done .step-num span { display: none; }
+    .step-pill.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .step-pill.active .step-num {
+      background: rgba(255,255,255,0.25);
+      color: #fff;
+    }
+    .step-pill.inactive { color: var(--step-inactive); }
+    .step-pill.inactive .step-num {
+      background: var(--step-inactive);
+      color: #fff;
+    }
+    .step-sep {
+      color: var(--border);
+      font-size: 14px;
+      padding: 0 2px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .icon-btn {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .icon-btn svg { width:16px; height:16px; }
+    .avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3d5a99, #6b84ba);
+    }
+
+    /* ── LAYOUT ── */
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px;
+      background: var(--sidebar-bg);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 0;
+      overflow-y: auto;
+    }
+    .sidebar-section-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #4b5060;
+      padding: 0 20px 8px;
+    }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      color: var(--sidebar-txt);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-item:hover { background: rgba(255,255,255,0.05); color: #d0d4e0; }
+    .sidebar-item.active {
+      color: var(--sidebar-active);
+      border-left-color: var(--accent-dim);
+      background: rgba(61,90,153,0.18);
+    }
+    .sidebar-item svg { width:15px; height:15px; flex-shrink:0; }
+    .sidebar-item .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-done { background: var(--step-done); }
+    .dot-active { background: var(--accent-dim); }
+    .dot-inactive { background: #35394a; }
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid #252830;
+      margin: 12px 0;
+    }
+    .sidebar-projects-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 8px;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #4b5060;
+    }
+    .sidebar-projects-label span { cursor: pointer; color: #5a6070; }
+    .sidebar-new-project {
+      padding: 7px 20px;
+      font-size: 12.5px;
+      color: #4b5060;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 40px 60px;
+    }
+    .page-header {
+      margin-bottom: 28px;
+    }
+    .breadcrumb {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--text-secondary); }
+    .page-title {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+    .page-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ── FORM LAYOUT ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .form-col-full { grid-column: 1 / -1; }
+
+    .field-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field-card:focus-within {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 3px rgba(61,90,153,0.07);
+    }
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .field-label .required {
+      color: #e05a5a;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .field-label .optional-tag {
+      background: var(--tag-bg);
+      color: var(--tag-txt);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 10px;
+      letter-spacing: 0.2px;
+      text-transform: none;
+    }
+    .field-input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 13px;
+      font-size: 13.5px;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    .field-input:focus {
+      border-color: var(--accent-dim);
+      background: #fff;
+    }
+    .field-input::placeholder { color: var(--text-muted); }
+    .field-textarea {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 13px;
+      font-size: 13.5px;
+      color: var(--text-primary);
+      outline: none;
+      resize: vertical;
+      min-height: 90px;
+      font-family: inherit;
+      line-height: 1.55;
+      transition: border-color 0.15s;
+    }
+    .field-textarea:focus {
+      border-color: var(--accent-dim);
+      background: #fff;
+    }
+    .field-textarea::placeholder { color: var(--text-muted); }
+    .field-hint {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 7px;
+      line-height: 1.5;
+    }
+
+    /* ── FEATURE TAGS ── */
+    .tag-input-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      cursor: text;
+      min-height: 42px;
+      align-items: center;
+    }
+    .tag {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--accent-lt);
+      color: var(--accent);
+      border-radius: 20px;
+      padding: 3px 10px 3px 10px;
+      font-size: 12.5px;
+      font-weight: 500;
+    }
+    .tag .tag-remove {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: rgba(61,90,153,0.15);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 10px;
+      color: var(--accent);
+    }
+    .tag-placeholder {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* ── UPLOAD ZONE ── */
+    .upload-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--input-bg);
+      padding: 28px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .upload-zone:hover {
+      border-color: var(--accent-dim);
+      background: var(--accent-lt);
+    }
+    .upload-icon {
+      width: 36px; height: 36px;
+      background: var(--accent-lt);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-icon svg { width:18px; height:18px; stroke: var(--accent); fill:none; }
+    .upload-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+    .upload-sub { font-size: 12px; color: var(--text-muted); }
+    .upload-formats {
+      display: flex; gap: 6px; margin-top: 4px;
+    }
+    .format-badge {
+      background: var(--tag-bg);
+      color: var(--tag-txt);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .upload-skip-note {
+      margin-top: 10px;
+      background: #fffbf0;
+      border: 1px solid #f0e2b0;
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+    }
+    .upload-skip-note svg { width:15px; height:15px; stroke:#c9a024; fill:none; flex-shrink:0; margin-top:1px; }
+    .upload-skip-note p { font-size: 12.5px; color: #8a6e1a; line-height: 1.5; }
+
+    /* ── BOTTOM BAR ── */
+    .bottom-bar {
+      height: 56px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      flex-shrink: 0;
+    }
+    .bottom-meta {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+    .bottom-meta .meta-item {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .meta-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+    }
+    .bottom-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn {
+      padding: 9px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .btn-secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .btn-secondary:hover { background: var(--bg); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .btn-primary:hover { background: #324e8a; }
+    .btn-primary svg { width:14px; height:14px; fill:#fff; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    /* ── ANNOTATION LABELS (wireframe callouts) ── */
+    .anno {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: #f0f1f4;
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: auto;
+      letter-spacing: 0.2px;
+    }
+
+    /* ── API KEY BANNER ── */
+    #api-key-banner {
+      background: #fffbf0;
+      border-bottom: 1px solid #f0e2b0;
+      padding: 10px 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: #8a6e1a;
+      flex-shrink: 0;
+    }
+    #api-key-banner svg { width:15px; height:15px; stroke:#c9a024; fill:none; flex-shrink:0; }
+    #api-key-input {
+      flex: 1;
+      max-width: 380px;
+      background: #fff;
+      border: 1px solid #e8d48a;
+      border-radius: var(--radius-sm);
+      padding: 6px 11px;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      color: var(--text-primary);
+      outline: none;
+    }
+    #api-key-input:focus { border-color: var(--accent-dim); }
+    #api-key-input::placeholder { color: var(--text-muted); font-family: inherit; }
+    .api-key-save-btn {
+      padding: 6px 14px;
+      background: #c9a024;
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .api-key-save-btn:hover { background: #b08c1a; }
+    #api-key-status { font-size: 12px; color: var(--step-done); display: none; }
+
+    /* ── UPLOAD ZONE STATES ── */
+    .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-lt);
+    }
+    .upload-zone.file-loaded {
+      border-color: var(--step-done);
+      background: #f0faf6;
+    }
+    #upload-file-info {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: #f0faf6;
+      border: 1px solid #b6e0cf;
+      border-radius: var(--radius-sm);
+      padding: 9px 14px;
+      margin-top: 10px;
+      font-size: 12.5px;
+      color: #2e7d5c;
+    }
+    #upload-file-info svg { width:14px; height:14px; stroke:#2e7d5c; fill:none; flex-shrink:0; }
+    #upload-file-info .file-remove {
+      margin-left: auto;
+      cursor: pointer;
+      color: #a0a7b4;
+      font-size: 13px;
+      padding: 0 2px;
+    }
+    #upload-file-info .file-remove:hover { color: #e05a5a; }
+    /* hidden real file input */
+    #file-input { display: none; }
+
+    /* ── RESULTS PANEL ── */
+    #results-panel {
+      display: none;
+      margin-top: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .results-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .results-badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+    .results-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .results-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    /* Loading skeleton */
+    #results-loading {
+      padding: 32px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .skel {
+      background: linear-gradient(90deg, #f0f1f4 25%, #e8eaed 50%, #f0f1f4 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 5px;
+    }
+    .skel-h { height: 14px; }
+    .skel-p { height: 11px; }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .loading-label {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 4px;
+    }
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.4s steps(4, end) infinite;
+    }
+    @keyframes dots {
+      0%   { content: ''; }
+      25%  { content: '.'; }
+      50%  { content: '..'; }
+      75%  { content: '...'; }
+    }
+    /* Sections */
+    #results-body { padding: 0; }
+    .result-section {
+      border-bottom: 1px solid var(--border);
+    }
+    .result-section:last-child { border-bottom: none; }
+    .result-section-header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 14px 22px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--surface);
+      transition: background 0.12s;
+    }
+    .result-section-header:hover { background: var(--bg); }
+    .result-section-icon {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .result-section-icon svg { width:14px; height:14px; fill:none; stroke-width:1.6; }
+    .icon-insights  { background: #eef1f8; }
+    .icon-insights svg  { stroke: var(--accent); }
+    .icon-personas  { background: #f0faf6; }
+    .icon-personas svg  { stroke: #2e7d5c; }
+    .icon-opps      { background: #fff8ee; }
+    .icon-opps svg      { stroke: #c9a024; }
+    .icon-summary   { background: #f5f0ff; }
+    .icon-summary svg   { stroke: #7b5ea7; }
+    .result-section-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+      flex: 1;
+    }
+    .result-section-chevron {
+      color: var(--text-muted);
+      font-size: 13px;
+      transition: transform 0.2s;
+    }
+    .result-section-chevron.open { transform: rotate(90deg); }
+    .result-section-body {
+      padding: 0 22px 18px 59px;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      display: none;
+    }
+    .result-section-body.open { display: block; }
+    .result-section-body h4 {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin: 14px 0 6px;
+    }
+    .result-section-body h4:first-child { margin-top: 2px; }
+    .result-section-body p { margin-bottom: 8px; }
+    .result-section-body ul {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 10px;
+    }
+    .result-section-body ul li {
+      padding: 4px 0 4px 16px;
+      position: relative;
+      font-size: 13px;
+    }
+    .result-section-body ul li::before {
+      content: '›';
+      position: absolute;
+      left: 0;
+      color: var(--accent-dim);
+      font-weight: 700;
+    }
+    .persona-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .persona-card-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .persona-card-role {
+      font-size: 12px;
+      color: var(--accent-dim);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .opp-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff8ee;
+      border: 1px solid #f0e2b0;
+      color: #8a6e1a;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12.5px;
+      font-weight: 500;
+      margin: 3px 4px 3px 0;
+    }
+    /* Error state */
+    #results-error {
+      display: none;
+      padding: 24px 22px;
+      background: #fff5f5;
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
+    .error-inner {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .error-icon {
+      width: 32px; height: 32px;
+      background: #fee2e2;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .error-icon svg { width:16px; height:16px; stroke:#e05a5a; fill:none; }
+    .error-title { font-size: 14px; font-weight: 700; color: #e05a5a; margin-bottom: 4px; }
+    .error-msg   { font-size: 13px; color: #9b4040; line-height: 1.55; }
+    .error-retry {
+      margin-top: 12px;
+      padding: 7px 16px;
+      background: #e05a5a;
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .error-retry:hover { background: #c94a4a; }
+
+    /* JSON debug toggle */
+    #json-debug-wrap {
+      display: none;
+      padding: 12px 22px;
+      border-top: 1px solid var(--border);
+      background: #1a1d23;
+    }
+    #json-debug-wrap pre {
+      font-size: 11.5px;
+      color: #8fbc8f;
+      font-family: 'Courier New', monospace;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .debug-toggle {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 6px 22px;
+      display: inline-block;
+    }
+    .debug-toggle:hover { color: var(--text-secondary); }
+
+    /* ── LOADING SPINNER on button ── */
+    .btn-spinner {
+      width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-primary.loading .btn-spinner { display: block; }
+    .btn-primary.loading .btn-run-icon { display: none; }
+    .btn-primary.loading .btn-run-text::after { content: 'Analysing…'; }
+    .btn-primary.loading .btn-run-label { display: none; }
+    .btn-primary:disabled { opacity: 0.65; cursor: not-allowed; pointer-events: none; }
+
+    /* ════════════════════════════════════════════════════════════
+       NEW STAGE PANELS
+    ════════════════════════════════════════════════════════════ */
+
+    /* Each stage screen wraps <main> content — hidden by default */
+    .stage-screen {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+    }
+    .stage-screen.visible { display: flex; }
+
+    /* Shared stage header */
+    .stage-header {
+      margin-bottom: 24px;
+    }
+    .stage-title {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      color: var(--text-primary);
+      margin-bottom: 5px;
+    }
+    .stage-desc {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+    }
+
+    /* Shared canvas card */
+    .canvas-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .canvas-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+    .canvas-card-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .canvas-card-body {
+      flex: 1;
+      position: relative;
+      min-height: 420px;
+    }
+    .canvas-card-body canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Download button */
+    .btn-dl {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .btn-dl:hover { background: var(--bg); border-color: var(--accent-dim); color: var(--accent); }
+    .btn-dl svg { width:13px; height:13px; stroke:currentColor; fill:none; }
+
+    /* Stage nav footer row */
+    .stage-nav-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0 0;
+      flex-shrink: 0;
+    }
+    .btn-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn-nav-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .btn-nav-ghost:hover { background: var(--bg); }
+    .btn-nav-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-nav-primary:hover { background: #324e8a; }
+
+    /* ── UX REPORT SCREEN ── */
+    .report-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .report-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .report-card-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .report-card-value {
+      font-size: 13.5px;
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    .report-card-full { grid-column: 1 / -1; }
+    .report-next-steps {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .report-next-steps li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .report-next-steps li:last-child { border: none; }
+    .report-step-num {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--accent-lt);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .report-export-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn-export {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn-export-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+    }
+    .btn-export-primary:hover { background: #324e8a; }
+    .btn-export-secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .btn-export-secondary:hover { background: var(--bg); }
+    .btn-export svg { width:14px; height:14px; stroke:currentColor; fill:none; }
+
+    /* Tooltip on node hover */
+    #canvas-tooltip {
+      position: fixed;
+      background: var(--text-primary);
+      color: #fff;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      pointer-events: none;
+      z-index: 9999;
+      display: none;
+      max-width: 220px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-dot">
+      <svg viewBox="0 0 12 12"><path d="M2 6h8M6 2l4 4-4 4"/></svg>
+    </div>
+    ResearchGen AI
+  </div>
+
+  <nav class="steps-nav">
+    <!-- Step 1 active -->
+    <div class="step-pill active">
+      <div class="step-num"><span>1</span></div>
+      Idea Input
+    </div>
+    <span class="step-sep">›</span>
+    <div class="step-pill inactive">
+      <div class="step-num"><span>2</span></div>
+      AI Analysis
+    </div>
+    <span class="step-sep">›</span>
+    <div class="step-pill inactive">
+      <div class="step-num"><span>3</span></div>
+      Insight Map
+    </div>
+    <span class="step-sep">›</span>
+    <div class="step-pill inactive">
+      <div class="step-num"><span>4</span></div>
+      Personas
+    </div>
+    <span class="step-sep">›</span>
+    <div class="step-pill inactive">
+      <div class="step-num"><span>5</span></div>
+      Opportunity Map
+    </div>
+    <span class="step-sep">›</span>
+    <div class="step-pill inactive">
+      <div class="step-num"><span>6</span></div>
+      UX Report
+    </div>
+  </nav>
+
+  <div class="topbar-actions">
+    <div class="icon-btn">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#8a8f9d" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l3 3"/></svg>
+    </div>
+    <div class="icon-btn">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#8a8f9d" stroke-width="1.5"><path d="M8 1v14M1 8h14"/></svg>
+    </div>
+    <div class="avatar"></div>
+  </div>
+</header>
+
+<!-- API KEY BANNER -->
+<div id="api-key-banner">
+  <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+  <span>Enter your Anthropic API key to enable AI analysis:</span>
+  <input id="api-key-input" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false"/>
+  <button class="api-key-save-btn" onclick="saveApiKey()">Save Key</button>
+  <span id="api-key-status">✓ Key saved</span>
+</div>
+
+<!-- BODY -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section-label">Flow</div>
+    <div class="sidebar-item active">
+      <span class="dot dot-active"></span>
+      Idea Input
+    </div>
+    <div class="sidebar-item">
+      <span class="dot dot-inactive"></span>
+      AI Analysis
+    </div>
+    <div class="sidebar-item">
+      <span class="dot dot-inactive"></span>
+      Insight Map
+    </div>
+    <div class="sidebar-item">
+      <span class="dot dot-inactive"></span>
+      Personas
+    </div>
+    <div class="sidebar-item">
+      <span class="dot dot-inactive"></span>
+      Opportunity Map
+    </div>
+    <div class="sidebar-item">
+      <span class="dot dot-inactive"></span>
+      UX Report
+    </div>
+
+    <hr class="sidebar-divider"/>
+
+    <div class="sidebar-projects-label">
+      Projects
+      <span>+</span>
+    </div>
+    <div class="sidebar-new-project">
+      <svg viewBox="0 0 14 14" fill="none" stroke="#4b5060" stroke-width="1.5" width="13" height="13"><path d="M7 1v12M1 7h12"/></svg>
+      New Project
+    </div>
+  </aside>
+
+  <!-- MAIN — STEP 1 + 2 -->
+  <main class="main stage-screen visible" id="screen-1">
+
+    <div id="step1-content">
+      <div class="page-header">
+        <div class="breadcrumb">
+          <a href="#">ResearchGen AI</a>
+          <span>›</span>
+          <span>Idea Input</span>
+        </div>
+        <div class="page-title">Idea Input</div>
+        <div class="page-desc">Describe your product idea and research context — AI will generate a full UX research report</div>
+      </div>
+
+    <!-- ROW 1: Service Name + Target Users -->
+    <div class="form-grid">
+      <div class="field-card">
+        <div class="field-label">
+          Service Name <span class="required">*</span>
+        </div>
+        <input id="inp-service-name" class="field-input" type="text" placeholder="e.g. PocketBudget — personal finance for Gen Z" />
+        <div class="field-hint">The name and one-line description of the product or feature</div>
+      </div>
+
+      <div class="field-card">
+        <div class="field-label">
+          Target Users <span class="required">*</span>
+        </div>
+        <input id="inp-target-users" class="field-input" type="text" placeholder="e.g. Freelancers aged 25–35, non-accountants" />
+        <div class="field-hint">Primary user segment — demographics, roles, or behaviors</div>
+      </div>
+    </div>
+
+    <!-- ROW 2: Problem Statement (full width) -->
+    <div class="form-grid">
+      <div class="field-card form-col-full">
+        <div class="field-label">
+          Problem Statement <span class="required">*</span>
+        </div>
+        <textarea id="inp-problem" class="field-textarea" placeholder="Describe the core problem users face. What pain point, friction, or unmet need does your product address?&#10;&#10;e.g. Freelancers struggle to track irregular income, separate personal and business expenses, and prepare for tax season without dedicated tooling."></textarea>
+        <div class="field-hint">Be specific — the AI uses this to frame hypotheses and research questions</div>
+      </div>
+    </div>
+
+    <!-- ROW 3: User Scenario (full width) -->
+    <div class="form-grid">
+      <div class="field-card form-col-full">
+        <div class="field-label">
+          User Scenario <span class="required">*</span>
+        </div>
+        <textarea id="inp-scenario" class="field-textarea" style="min-height:110px" placeholder="Walk through a typical use case as a short narrative.&#10;&#10;e.g. Maria is a freelance designer. At the end of each project she manually copies invoices into a spreadsheet, guesses her tax bracket, and often misses deductible expenses. She needs a way to automate categorisation during the month so she can close the books in 10 minutes."></textarea>
+        <div class="field-hint">A realistic story helps AI generate accurate personas and journey maps</div>
+      </div>
+    </div>
+
+    <!-- ROW 4: Core Features (tag input) -->
+    <div class="form-grid">
+      <div class="field-card form-col-full">
+        <div class="field-label">
+          Core Features <span class="required">*</span>
+          <span class="anno">Press Enter to add a tag</span>
+        </div>
+        <div id="tag-wrap" class="tag-input-wrap" tabindex="0">
+          <div class="tag" data-value="Expense categorisation">Expense categorisation <span class="tag-remove">✕</span></div>
+          <div class="tag" data-value="Invoice scanner">Invoice scanner <span class="tag-remove">✕</span></div>
+          <div class="tag" data-value="Tax estimate dashboard">Tax estimate dashboard <span class="tag-remove">✕</span></div>
+          <input id="tag-input" type="text" placeholder="Add a feature…"
+            style="border:none;outline:none;background:transparent;font-size:13px;color:var(--text-primary);font-family:inherit;min-width:130px;padding:2px 4px;" />
+        </div>
+        <div class="field-hint">List the key capabilities — each tag becomes a research dimension</div>
+      </div>
+    </div>
+
+    <!-- ROW 5: Data Upload (full width) -->
+    <div class="form-grid">
+      <div class="field-card form-col-full">
+        <div class="field-label">
+          Optional Data Upload
+          <span class="optional-tag">Optional</span>
+        </div>
+
+        <!-- Hidden real file input -->
+        <input id="file-input" type="file" accept=".csv,.txt,.xlsx,.pdf" />
+
+        <div id="upload-zone" class="upload-zone">
+          <div class="upload-icon">
+            <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="upload-title">Drag & drop files here, or click to browse</div>
+          <div class="upload-sub">Upload user reviews, survey results, interview notes, or any raw feedback</div>
+          <div class="upload-formats">
+            <span class="format-badge">CSV</span>
+            <span class="format-badge">TXT</span>
+            <span class="format-badge">XLSX</span>
+            <span class="format-badge">PDF</span>
+          </div>
+        </div>
+
+        <div id="upload-file-info">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span id="upload-file-name">file.csv</span>
+          <span id="upload-file-size" style="color:var(--text-muted);font-size:11.5px;"></span>
+          <span class="file-remove" id="upload-remove" title="Remove file">✕</span>
+        </div>
+
+        <div class="upload-skip-note">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p>No data? No problem. You can run AI analysis using only your idea inputs above — the AI will generate research hypotheses, personas, and insights based on best-practice UX frameworks.</p>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div class="stage-header" id="step2-header" style="display:none">
+      <div class="breadcrumb"><a href="#" onclick="navigateTo(1);return false">Idea Input</a><span>›</span><span>AI Analysis</span></div>
+      <div class="stage-title">AI Analysis Results</div>
+      <div class="stage-desc">Synthesised UX research insights generated from your product idea</div>
+    </div>
+
+    <!-- ── RESULTS PANEL ── -->
+    <div id="results-panel">
+      <div class="results-header">
+        <div class="results-header-left">
+          <span class="results-badge">AI Analysis</span>
+          <span class="results-title">UX Research Insights</span>
+        </div>
+        <span class="results-meta" id="results-timestamp"></span>
+      </div>
+
+      <!-- Loading state -->
+      <div id="results-loading">
+        <div class="skel skel-h" style="width:40%"></div>
+        <div class="skel skel-p" style="width:90%"></div>
+        <div class="skel skel-p" style="width:75%"></div>
+        <div class="skel skel-p" style="width:82%"></div>
+        <div class="skel skel-h" style="width:35%;margin-top:8px"></div>
+        <div class="skel skel-p" style="width:88%"></div>
+        <div class="skel skel-p" style="width:70%"></div>
+        <p class="loading-label">Generating UX insights<span class="loading-dots"></span></p>
+      </div>
+
+      <!-- Error state -->
+      <div id="results-error">
+        <div class="error-inner">
+          <div class="error-icon">
+            <svg viewBox="0 0 24 24" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div>
+            <div class="error-title">Analysis failed</div>
+            <div class="error-msg" id="error-msg-text">Something went wrong while calling the API.</div>
+            <button class="error-retry" onclick="retryAnalysis()">Retry</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result sections (populated by JS) -->
+      <div id="results-body"></div>
+
+      <!-- Debug toggle -->
+      <span class="debug-toggle" id="debug-toggle" onclick="toggleDebug()" style="display:none">
+        View raw JSON payload
+      </span>
+      <div id="json-debug-wrap">
+        <pre id="json-debug-pre"></pre>
+      </div>
+    </div><!-- /results-panel -->
+
+  </main><!-- /screen-1 -->
+</div><!-- /layout -->
+
+<!-- ══════════════════════════════════════════
+     STEP 3–6: FULL-WIDTH SCREENS (outside sidebar layout)
+     Each reuses .main padding but fills the content area
+══════════════════════════════════════════ -->
+<div id="stages-outer" style="display:none;flex:1;overflow:hidden;flex-direction:column;">
+
+  <!-- STEP 3 — INSIGHT MAP -->
+  <main class="main stage-screen" id="screen-3" style="height:100%;overflow-y:auto;">
+    <div class="stage-header">
+      <div class="breadcrumb"><a href="#" onclick="navigateTo(1);return false">Idea Input</a><span>›</span><span>Insight Map</span></div>
+      <div class="stage-title">Insight Map</div>
+      <div class="stage-desc">Force-directed graph of key UX insight themes — node size reflects emphasis, lines show relatedness</div>
+    </div>
+    <div class="canvas-card">
+      <div class="canvas-card-header">
+        <span class="canvas-card-title">Insight Theme Network</span>
+        <button class="btn-dl" onclick="downloadCanvas('insight-canvas','insight-map.png')">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Download Insight Map (PNG)
+        </button>
+      </div>
+      <div class="canvas-card-body" id="insight-chart">
+        <canvas id="insight-canvas"></canvas>
+      </div>
+    </div>
+    <div class="stage-nav-row">
+      <button class="btn-nav btn-nav-ghost" onclick="navigateTo(1)">← Back to Analysis</button>
+      <button class="btn-nav btn-nav-primary" onclick="navigateTo(4)">Personas →</button>
+    </div>
+  </main>
+
+  <!-- STEP 4 — PERSONA MATRIX -->
+  <main class="main stage-screen" id="screen-4" style="height:100%;overflow-y:auto;">
+    <div class="stage-header">
+      <div class="breadcrumb"><a href="#" onclick="navigateTo(3);return false">Insight Map</a><span>›</span><span>Personas</span></div>
+      <div class="stage-title">Persona Matrix</div>
+      <div class="stage-desc">Personas plotted on Adoption Readiness × Need Intensity axes</div>
+    </div>
+    <div class="canvas-card">
+      <div class="canvas-card-header">
+        <span class="canvas-card-title">2×2 Persona Matrix</span>
+        <button class="btn-dl" onclick="downloadCanvas('persona-canvas','persona-matrix.png')">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Download Persona Matrix (PNG)
+        </button>
+      </div>
+      <div class="canvas-card-body" id="persona-chart">
+        <canvas id="persona-canvas"></canvas>
+      </div>
+    </div>
+    <div class="stage-nav-row">
+      <button class="btn-nav btn-nav-ghost" onclick="navigateTo(3)">← Insight Map</button>
+      <button class="btn-nav btn-nav-primary" onclick="navigateTo(5)">기회 지도 →</button>
+    </div>
+  </main>
+
+  <!-- STEP 5 — 기회 지도 -->
+  <main class="main stage-screen" id="screen-5" style="height:100%;overflow-y:auto;">
+    <div class="stage-header">
+      <div class="breadcrumb"><a href="#" onclick="navigateTo(4);return false">Personas</a><span>›</span><span>기회 지도</span></div>
+      <div class="stage-title">기회 지도 <span style="font-size:15px;font-weight:400;color:var(--text-secondary)">Opportunity Map</span></div>
+      <div class="stage-desc">Impact vs Effort quadrant — each dot is an opportunity idea</div>
+    </div>
+    <div class="canvas-card">
+      <div class="canvas-card-header">
+        <span class="canvas-card-title">Impact × Effort Matrix</span>
+        <button class="btn-dl" onclick="downloadCanvas('opp-canvas','opportunity-map.png')">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Download Opportunity Map (PNG)
+        </button>
+      </div>
+      <div class="canvas-card-body" id="opportunity-chart">
+        <canvas id="opp-canvas"></canvas>
+      </div>
+    </div>
+    <div class="stage-nav-row">
+      <button class="btn-nav btn-nav-ghost" onclick="navigateTo(4)">← Personas</button>
+      <button class="btn-nav btn-nav-primary" onclick="navigateTo(6)">UX Report →</button>
+    </div>
+  </main>
+
+  <!-- STEP 6 — UX REPORT -->
+  <main class="main stage-screen" id="screen-6" style="height:100%;overflow-y:auto;">
+    <div class="stage-header">
+      <div class="breadcrumb"><a href="#" onclick="navigateTo(5);return false">기회 지도</a><span>›</span><span>UX Report</span></div>
+      <div class="stage-title">UX Research Report</div>
+      <div class="stage-desc">Full synthesised report — export as JSON or copy to clipboard</div>
+    </div>
+    <div id="report-content"></div>
+    <div class="stage-nav-row" style="margin-top:20px;">
+      <button class="btn-nav btn-nav-ghost" onclick="navigateTo(5)">← 기회 지도</button>
+      <div class="report-export-row">
+        <button class="btn-export btn-export-secondary" onclick="copyReportJSON()">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy JSON
+        </button>
+        <button class="btn-export btn-export-secondary" onclick="downloadReportJSON()">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Download JSON
+        </button>
+        <button id="btn-pdf-export" class="btn-export btn-export-primary" onclick="exportReportPDF()">
+          <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          보고서 다운로드 (PDF)
+        </button>
+      </div>
+    </div>
+  </main>
+
+</div><!-- /stages-outer -->
+
+<!-- Canvas tooltip -->
+<div id="canvas-tooltip"></div>
+
+<!-- BOTTOM BAR -->
+<footer class="bottom-bar">
+  <div class="bottom-meta">
+    <div class="meta-item">
+      <span class="meta-dot"></span>
+      Fields filled: <strong id="meta-filled" style="color:var(--text-primary);margin-left:3px">0 / 5</strong>
+    </div>
+    <div class="meta-item" style="color:var(--text-muted)">
+      Data: <strong id="meta-upload" style="color:var(--step-done);margin-left:3px">No upload · AI-only mode</strong>
+    </div>
+  </div>
+  <div class="bottom-actions">
+    <button class="btn btn-secondary" onclick="saveDraft()">Save Draft</button>
+    <button id="run-btn" class="btn btn-primary" onclick="runAnalysis()">
+      <div class="btn-spinner"></div>
+      <svg class="btn-run-icon" viewBox="0 0 14 14"><path d="M7 1c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6 2.7-6 6-6zM5 7l2 2 4-4" stroke="#fff" stroke-width="1.5" fill="none"/></svg>
+      <span class="btn-run-label">Run AI Analysis →</span>
+    </button>
+  </div>
+</footer>
+
+<script>
+/* ================================================================
+   AI UX RESEARCH REPORT GENERATOR — Functional JS Layer
+   ================================================================ */
+
+// ── State ──────────────────────────────────────────────────────
+let uploadedFileText = '';
+let uploadedFileName = '';
+let lastPayload      = null;
+
+// ── API Key helpers ────────────────────────────────────────────
+function saveApiKey() {
+  const val = document.getElementById('api-key-input').value.trim();
+  if (!val) { alert('Anthropic API 키를 입력해주세요.'); return; }
+  if (!val.startsWith('sk-ant-')) {
+    if (!confirm('입력하신 키가 "sk-ant-"로 시작하지 않아요. Anthropic API 키가 맞나요?\n\n그래도 저장할까요?')) return;
+  }
+  sessionStorage.setItem('anthropic_key', val);
+  const status = document.getElementById('api-key-status');
+  status.style.display = 'inline';
+  setTimeout(() => { status.style.display = 'none'; }, 2500);
+}
+
+function getApiKey() {
+  return sessionStorage.getItem('anthropic_key') || '';
+}
+
+// Pre-fill if key already saved
+(function initKey() {
+  const saved = getApiKey();
+  if (saved) {
+    document.getElementById('api-key-input').value = saved;
+  }
+})();
+
+// ── Tag input ──────────────────────────────────────────────────
+const tagWrap  = document.getElementById('tag-wrap');
+const tagInput = document.getElementById('tag-input');
+
+function getTags() {
+  return Array.from(tagWrap.querySelectorAll('.tag'))
+              .map(t => t.getAttribute('data-value') || t.textContent.replace('✕','').trim());
+}
+
+function addTag(value) {
+  const text = value.trim();
+  if (!text) return;
+  const existing = getTags().map(t => t.toLowerCase());
+  if (existing.includes(text.toLowerCase())) return;
+
+  const tag = document.createElement('div');
+  tag.className = 'tag';
+  tag.setAttribute('data-value', text);
+  tag.innerHTML = `${escHtml(text)} <span class="tag-remove">✕</span>`;
+  tag.querySelector('.tag-remove').addEventListener('click', () => {
+    tag.remove();
+    updateMeta();
+  });
+  tagWrap.insertBefore(tag, tagInput);
+  tagInput.value = '';
+  updateMeta();
+}
+
+tagInput.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ',') && tagInput.value.trim()) {
+    e.preventDefault();
+    addTag(tagInput.value.replace(/,/g,''));
+  }
+  if (e.key === 'Backspace' && tagInput.value === '') {
+    const tags = tagWrap.querySelectorAll('.tag');
+    if (tags.length) tags[tags.length - 1].remove();
+    updateMeta();
+  }
+});
+
+tagWrap.addEventListener('click', () => tagInput.focus());
+
+// Wire up the three default tag remove buttons
+tagWrap.querySelectorAll('.tag-remove').forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.closest('.tag').remove();
+    updateMeta();
+  });
+});
+
+// ── Field-filled counter ───────────────────────────────────────
+const watchedFields = [
+  'inp-service-name',
+  'inp-target-users',
+  'inp-problem',
+  'inp-scenario'
+];
+
+watchedFields.forEach(id => {
+  document.getElementById(id).addEventListener('input', updateMeta);
+});
+
+function updateMeta() {
+  let filled = 0;
+  watchedFields.forEach(id => {
+    if (document.getElementById(id).value.trim()) filled++;
+  });
+  if (getTags().length) filled++;
+  document.getElementById('meta-filled').textContent = `${filled} / 5`;
+
+  const uploadEl = document.getElementById('meta-upload');
+  if (uploadedFileName) {
+    uploadEl.textContent = uploadedFileName;
+    uploadEl.style.color = 'var(--step-done)';
+  } else {
+    uploadEl.textContent = 'No upload · AI-only mode';
+    uploadEl.style.color = 'var(--step-done)';
+  }
+}
+
+updateMeta();
+
+// ── File upload / drag-drop ────────────────────────────────────
+const uploadZone   = document.getElementById('upload-zone');
+const fileInput    = document.getElementById('file-input');
+const fileInfo     = document.getElementById('upload-file-info');
+const fileNameEl   = document.getElementById('upload-file-name');
+const fileSizeEl   = document.getElementById('upload-file-size');
+const fileRemoveEl = document.getElementById('upload-remove');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+fileRemoveEl.addEventListener('click', clearUpload);
+
+function handleFile(file) {
+  const allowed = ['text/csv','text/plain','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                   'application/pdf','application/vnd.ms-excel'];
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (!['csv','txt','xlsx','xls','pdf'].includes(ext)) {
+    showUploadError('Unsupported file type. Please upload CSV, TXT, XLSX, or PDF.');
+    return;
+  }
+
+  uploadedFileName = file.name;
+  fileNameEl.textContent = file.name;
+  fileSizeEl.textContent = `(${formatBytes(file.size)})`;
+  fileInfo.style.display = 'flex';
+  uploadZone.classList.add('file-loaded');
+  updateMeta();
+
+  // Read text-based files
+  if (['csv','txt'].includes(ext)) {
+    const reader = new FileReader();
+    reader.onload = e => { uploadedFileText = e.target.result; };
+    reader.onerror = () => { uploadedFileText = ''; };
+    reader.readAsText(file);
+  } else {
+    // For binary types just note the file name — we can't parse in-browser without libraries
+    uploadedFileText = `[Binary file attached: ${file.name}. Summarise any relevant context from the file name and type.]`;
+  }
+}
+
+function clearUpload() {
+  uploadedFileText = '';
+  uploadedFileName = '';
+  fileInfo.style.display = 'none';
+  uploadZone.classList.remove('file-loaded');
+  fileInput.value = '';
+  updateMeta();
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function showUploadError(msg) {
+  alert(msg);
+}
+
+// ── Collect form data ──────────────────────────────────────────
+function collectFormData() {
+  return {
+    serviceName:      document.getElementById('inp-service-name').value.trim(),
+    targetUsers:      document.getElementById('inp-target-users').value.trim(),
+    problemStatement: document.getElementById('inp-problem').value.trim(),
+    userScenario:     document.getElementById('inp-scenario').value.trim(),
+    coreFeatures:     getTags(),
+    uploadedData:     uploadedFileText || ''
+  };
+}
+
+function validateForm(data) {
+  const missing = [];
+  if (!data.serviceName)      missing.push('Service Name');
+  if (!data.targetUsers)      missing.push('Target Users');
+  if (!data.problemStatement) missing.push('Problem Statement');
+  if (!data.userScenario)     missing.push('User Scenario');
+  if (!data.coreFeatures.length) missing.push('Core Features');
+  return missing;
+}
+
+// ── Build prompt ───────────────────────────────────────────────
+function buildPrompt(data) {
+  const dataSection = data.uploadedData
+    ? `\n\n## Uploaded User Data\n\`\`\`\n${data.uploadedData.slice(0, 4000)}\n\`\`\``
+    : '\n\n## Uploaded User Data\nNo data uploaded. Generate insights using UX best-practice frameworks only.';
+
+  return `You are a senior UX researcher. Analyse the following product idea and generate a structured UX research report.
+
+## Product Idea
+- **Service Name:** ${data.serviceName}
+- **Target Users:** ${data.targetUsers}
+- **Problem Statement:** ${data.problemStatement}
+- **User Scenario:** ${data.userScenario}
+- **Core Features:** ${data.coreFeatures.join(', ')}
+${dataSection}
+
+Return your analysis in the following exact JSON structure (no markdown code fences, just raw JSON):
+
+{
+  "insights": {
+    "title": "Key UX Insights",
+    "summary": "2-3 sentence overview",
+    "points": ["insight 1", "insight 2", "insight 3", "insight 4"]
+  },
+  "hmwQuestions": [
+    "How might we help [target user] to [achieve goal]?",
+    "How might we reduce [pain point] for [user segment]?",
+    "How might we make [feature] more intuitive?",
+    "How might we [opportunity framing]?"
+  ],
+  "personas": [
+    {
+      "name": "Persona Name",
+      "role": "Role / Archetype",
+      "goals": "Primary goal in 1 sentence",
+      "painPoints": "Main frustration in 1 sentence",
+      "quote": "A realistic quote this persona might say"
+    },
+    {
+      "name": "Persona Name 2",
+      "role": "Role / Archetype",
+      "goals": "Primary goal in 1 sentence",
+      "painPoints": "Main frustration in 1 sentence",
+      "quote": "A realistic quote this persona might say"
+    }
+  ],
+  "opportunities": {
+    "title": "Opportunity Ideas",
+    "summary": "1-2 sentence framing",
+    "items": ["opportunity 1", "opportunity 2", "opportunity 3", "opportunity 4", "opportunity 5"]
+  },
+  "summary": {
+    "title": "UX Research Summary",
+    "overview": "3-4 sentence executive summary covering the problem, user needs, and recommended focus areas",
+    "nextSteps": ["recommended next step 1", "recommended next step 2", "recommended next step 3"]
+  }
+}`;
+}
+
+// ── API call ───────────────────────────────────────────────────
+async function callClaudeAPI(prompt) {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('No API key set. Please enter your Anthropic API key in the banner above.');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type':         'application/json',
+      'x-api-key':            apiKey,
+      'anthropic-version':    '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    let msg = errBody?.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+    if (response.status === 401) {
+      msg = 'API 키가 유효하지 않아요. 배너에서 API 키를 다시 확인하고 Save Key를 눌러주세요. (' + msg + ')';
+    } else if (response.status === 404) {
+      msg = '모델을 찾을 수 없어요. API 키의 모델 접근 권한을 확인해주세요. (' + msg + ')';
+    } else if (response.status === 429) {
+      msg = '요청 한도를 초과했어요. 잠시 후 다시 시도해주세요. (' + msg + ')';
+    }
+    throw new Error(msg);
+  }
+
+  const data = await response.json();
+  return data.content[0].text;
+}
+
+// ── Parse AI response ──────────────────────────────────────────
+function parseResponse(text) {
+  // Strip any accidental markdown code fences
+  const cleaned = text.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch(e) {
+    // Attempt to extract JSON object from the middle of a longer response
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]);
+    throw new Error('AI returned unexpected format. Raw response: ' + text.slice(0, 300));
+  }
+}
+
+// ── Render results ─────────────────────────────────────────────
+function renderResults(parsed) {
+  const body = document.getElementById('results-body');
+  body.innerHTML = '';
+
+  const sections = [
+    {
+      id:    'sec-insights',
+      icon:  'insights',
+      svgPath: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+      title: parsed.insights?.title || 'Key UX Insights',
+      html:  buildInsightsHtml(parsed.insights),
+      open:  true
+    },
+    {
+      id:    'sec-personas',
+      icon:  'personas',
+      svgPath: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+      title: 'User Personas',
+      html:  buildPersonasHtml(parsed.personas),
+      open:  true
+    },
+    {
+      id:    'sec-opps',
+      icon:  'opps',
+      svgPath: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+      title: parsed.opportunities?.title || 'Opportunity Ideas',
+      html:  buildOppsHtml(parsed.opportunities),
+      open:  false
+    },
+    {
+      id:    'sec-summary',
+      icon:  'summary',
+      svgPath: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>',
+      title: parsed.summary?.title || 'UX Research Summary',
+      html:  buildSummaryHtml(parsed.summary),
+      open:  false
+    }
+  ];
+
+  sections.forEach(sec => {
+    const el = document.createElement('div');
+    el.className = 'result-section';
+    el.innerHTML = `
+      <div class="result-section-header" onclick="toggleSection('${sec.id}')">
+        <div class="result-section-icon icon-${sec.icon}">
+          <svg viewBox="0 0 24 24" stroke-width="1.6">${sec.svgPath}</svg>
+        </div>
+        <span class="result-section-title">${escHtml(sec.title)}</span>
+        <span class="result-section-chevron ${sec.open ? 'open' : ''}" id="chev-${sec.id}">›</span>
+      </div>
+      <div class="result-section-body ${sec.open ? 'open' : ''}" id="${sec.id}">
+        ${sec.html}
+      </div>`;
+    body.appendChild(el);
+  });
+}
+
+function buildInsightsHtml(ins) {
+  if (!ins) return '<p>No insights returned.</p>';
+  let html = `<p>${escHtml(ins.summary || '')}</p>`;
+  if (ins.points?.length) {
+    html += '<h4>Key Points</h4><ul>' +
+      ins.points.map(p => `<li>${escHtml(p)}</li>`).join('') + '</ul>';
+  }
+  return html;
+}
+
+function buildPersonasHtml(personas) {
+  if (!personas?.length) return '<p>No personas generated.</p>';
+  return personas.map(p => `
+    <div class="persona-card">
+      <div class="persona-card-name">${escHtml(p.name || 'Unnamed')}</div>
+      <div class="persona-card-role">${escHtml(p.role || '')}</div>
+      <h4>Goals</h4><p>${escHtml(p.goals || '')}</p>
+      <h4>Pain Points</h4><p>${escHtml(p.painPoints || '')}</p>
+      ${p.quote ? `<h4>Quote</h4><p style="font-style:italic;color:var(--text-muted)">"${escHtml(p.quote)}"</p>` : ''}
+    </div>`).join('');
+}
+
+function buildOppsHtml(opps) {
+  if (!opps) return '<p>No opportunities returned.</p>';
+  let html = `<p>${escHtml(opps.summary || '')}</p>`;
+  if (opps.items?.length) {
+    html += '<div style="margin-top:10px">' +
+      opps.items.map(o => `<span class="opp-pill">✦ ${escHtml(o)}</span>`).join('') +
+    '</div>';
+  }
+  return html;
+}
+
+function buildSummaryHtml(sum) {
+  if (!sum) return '<p>No summary returned.</p>';
+  let html = `<p>${escHtml(sum.overview || '')}</p>`;
+  if (sum.nextSteps?.length) {
+    html += '<h4>Recommended Next Steps</h4><ul>' +
+      sum.nextSteps.map(s => `<li>${escHtml(s)}</li>`).join('') + '</ul>';
+  }
+  return html;
+}
+
+function toggleSection(id) {
+  const body = document.getElementById(id);
+  const chev = document.getElementById('chev-' + id);
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
+}
+
+// ── Progress step nav update ───────────────────────────────────
+function advanceToStep(n) {
+  const pills = document.querySelectorAll('.step-pill');
+  const sideItems = document.querySelectorAll('.sidebar-item');
+  pills.forEach((pill, i) => {
+    pill.classList.remove('active','done','inactive');
+    if (i + 1 < n)      pill.classList.add('done');
+    else if (i + 1 === n) pill.classList.add('active');
+    else                 pill.classList.add('inactive');
+  });
+  sideItems.forEach((item, i) => {
+    item.classList.remove('active');
+    item.querySelector('.dot').className = 'dot';
+    if (i + 1 < n) {
+      item.querySelector('.dot').classList.add('dot-done');
+    } else if (i + 1 === n) {
+      item.classList.add('active');
+      item.querySelector('.dot').classList.add('dot-active');
+    } else {
+      item.querySelector('.dot').classList.add('dot-inactive');
+    }
+  });
+
+  // Screen 1 visibility toggles (Step 1 form vs Step 2 results)
+  const s1Content = document.getElementById('step1-content');
+  const s2Header  = document.getElementById('step2-header');
+  const resPanel  = document.getElementById('results-panel');
+  if (s1Content && s2Header) {
+    if (n === 1) {
+      s1Content.style.display = 'block';
+      s2Header.style.display  = 'none';
+      if (resPanel) resPanel.style.marginTop = '28px';
+    } else if (n === 2) {
+      s1Content.style.display = 'none';
+      s2Header.style.display  = 'block';
+      if (resPanel) {
+        resPanel.style.display = 'block';
+        resPanel.style.marginTop = '0';
+      }
+    }
+  }
+}
+
+// ── Main run function ──────────────────────────────────────────
+async function runAnalysis() {
+  const data    = collectFormData();
+  const missing = validateForm(data);
+
+  if (missing.length) {
+    alert(`Please fill in the following required fields:\n• ${missing.join('\n• ')}`);
+    return;
+  }
+
+  if (!getApiKey()) {
+    alert('Please enter your Anthropic API key in the banner at the top.');
+    document.getElementById('api-key-input').focus();
+    return;
+  }
+
+  // Build and store payload for debug
+  const prompt = buildPrompt(data);
+  lastPayload  = { serviceName: data.serviceName, targetUsers: data.targetUsers,
+                   problemStatement: data.problemStatement, userScenario: data.userScenario,
+                   coreFeatures: data.coreFeatures, uploadedData: data.uploadedData };
+
+  // ── UI loading state ───────────────────────────────────────────
+  // Capture the button reference ONCE; we restore it in finally.
+  const runBtn = document.getElementById('run-btn');
+  if (runBtn) { runBtn.classList.add('loading'); runBtn.disabled = true; }
+
+  const panel   = document.getElementById('results-panel');
+  const loading = document.getElementById('results-loading');
+  const error   = document.getElementById('results-error');
+  const body    = document.getElementById('results-body');
+
+  // Show skeleton loader, hide stale results/errors
+  panel.style.display   = 'block';
+  loading.style.display = 'flex';
+  error.style.display   = 'none';
+  body.innerHTML        = '';
+  document.getElementById('debug-toggle').style.display     = 'none';
+  document.getElementById('json-debug-wrap').style.display  = 'none';
+
+  // Trigger Step 2 UI (hides form, shows loading results at top)
+  if (typeof _currentStep !== 'undefined') _currentStep = 2; 
+  advanceToStep(2);
+  window.scrollTo(0, 0);
+
+  try {
+    const raw    = await callClaudeAPI(prompt);
+    const parsed = parseResponse(raw);
+
+    // Hide skeleton
+    loading.style.display = 'none';
+
+    // ── Single call owns ALL post-success state ─────────────────
+    // showStep2Results is defined in the second <script> block.
+    // It: stores window.researchResult, sets _aiResult, renders
+    // the Step 2 panel, updates step pills once, updates bottom bar.
+    // It does NOT call navigateTo() or any navigation function.
+    if (typeof showStep2Results === 'function') {
+      showStep2Results(parsed);
+    }
+
+    // Debug helpers (non-navigating)
+    document.getElementById('results-timestamp').textContent =
+      'Generated ' + new Date().toLocaleTimeString();
+    document.getElementById('debug-toggle').style.display = 'inline-block';
+    document.getElementById('json-debug-pre').textContent =
+      JSON.stringify(lastPayload, null, 2);
+
+  } catch (err) {
+    console.error('[runAnalysis] 오류:', err);
+    loading.style.display = 'none';
+
+    // Friendlier message for network-level failures (CORS / offline)
+    let displayMsg = err.message || String(err);
+    if (displayMsg === 'Failed to fetch' || displayMsg.includes('NetworkError')) {
+      displayMsg = '네트워크 오류가 발생했어요. API 키가 저장되었는지 확인하고, 인터넷 연결을 확인해주세요. (Failed to fetch)';
+    }
+
+    error.style.display = 'block';
+    document.getElementById('error-msg-text').textContent = displayMsg;
+
+    // On error: revert pill state to step 1 (pure CSS, no layout change)
+    advanceToStep(1);
+
+    // Scroll error panel into view so user definitely sees it
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } finally {
+    // Re-enable whichever run button is currently in the DOM
+    const currentRunBtn = document.getElementById('run-btn');
+    if (currentRunBtn) { currentRunBtn.classList.remove('loading'); currentRunBtn.disabled = false; }
+  }
+}
+
+// ── Retry ──────────────────────────────────────────────────────
+function retryAnalysis() { runAnalysis(); }
+
+// ── Save Draft (localStorage) ──────────────────────────────────
+function saveDraft() {
+  const data = collectFormData();
+  try {
+    localStorage.setItem('uxrg_draft', JSON.stringify(data));
+    const btn = document.querySelector('.btn-secondary');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Saved';
+    setTimeout(() => { btn.textContent = orig; }, 1800);
+  } catch(e) {
+    alert('Could not save draft: ' + e.message);
+  }
+}
+
+(function loadDraft() {
+  try {
+    const saved = localStorage.getItem('uxrg_draft');
+    if (!saved) return;
+    const d = JSON.parse(saved);
+    if (d.serviceName)      document.getElementById('inp-service-name').value = d.serviceName;
+    if (d.targetUsers)      document.getElementById('inp-target-users').value = d.targetUsers;
+    if (d.problemStatement) document.getElementById('inp-problem').value = d.problemStatement;
+    if (d.userScenario)     document.getElementById('inp-scenario').value = d.userScenario;
+    if (d.coreFeatures?.length) {
+      tagWrap.querySelectorAll('.tag').forEach(t => t.remove());
+      d.coreFeatures.forEach(f => addTag(f));
+    }
+    updateMeta();
+  } catch(e) { /* ignore corrupt drafts */ }
+})();
+
+// ── Debug JSON toggle ──────────────────────────────────────────
+function toggleDebug() {
+  const wrap = document.getElementById('json-debug-wrap');
+  wrap.style.display = wrap.style.display === 'block' ? 'none' : 'block';
+}
+
+// ── Utility ────────────────────────────────────────────────────
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+</script>
+
+<script>
+/* ================================================================
+   STAGE NAVIGATION ENGINE + VISUAL INFOGRAPHIC MODULES
+   ================================================================ */
+
+// ── Global AI result store ──────────────────────────────────────
+let _aiResult = null;   // populated when runAnalysis succeeds
+
+// ── showStep2Results: called by runAnalysis after a successful parse ─
+// Stores global state, renders Step 2 panel, updates pills + bottom bar.
+// Does NOT call navigateTo() — stays on screen-1, no layout switch.
+function showStep2Results(parsed) {
+  // Safety: if parsed is falsy, don't attempt to render
+  if (!parsed) return;
+
+  // 1. Store global result state
+  window.researchResult = {
+    insights:      (parsed.insights && parsed.insights.points)         || [],
+    personas:      parsed.personas                                      || [],
+    opportunities: (parsed.opportunities && parsed.opportunities.items) || [],
+    summary:       (parsed.summary && parsed.summary.overview)          || '',
+    hmwQuestions:  parsed.hmwQuestions                                  || []
+  };
+  _aiResult = parsed;
+
+  // 2. Render the results panel content into #results-body
+  renderStep2Panel(parsed);
+
+  // 3. Update step pills + sidebar (pure CSS only — NO layout or screen changes)
+  _currentStep = 2;
+  advanceToStep(2);   // direct call to original Script-1 function, never recursive
+
+  // 4. Unlock sidebar steps 3–6
+  document.querySelectorAll('.sidebar-item').forEach(function(el, i) {
+    if (i >= 2) el.style.opacity = '1';
+  });
+
+  // 5. Update bottom bar → shows "← Edit Inputs" + "View Insight Map →" (click-only, no auto-nav)
+  syncBottomBar(2);
+
+  // 6. Scroll the results panel into view so user can see it without manual scrolling
+  var panel = document.getElementById('results-panel');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── renderStep2Panel: writes AI result into #results-body ──────────
+// Uses inline styles only — no new CSS classes added.
+function renderStep2Panel(data) {
+  var body = document.getElementById('results-body');
+  if (!body) return;
+
+  // Update panel header title to "AI Analysis Results"
+  var titleEl = document.querySelector('.results-title');
+  if (titleEl) titleEl.textContent = 'AI Analysis Results';
+
+  var insights     = (data.insights && data.insights.points)       || [];
+  var hmwQ         = data.hmwQuestions                              || [];
+  var summaryText  = (data.summary && data.summary.overview)        || '';
+  var summaryTitle = (data.summary && data.summary.title)           || 'Research Summary';
+
+  function sectionWrap(title, accentColor, content) {
+    return '<div style="margin-bottom:22px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #e2e4e9;">'
+      + '<span style="width:3px;height:16px;background:' + accentColor + ';border-radius:2px;display:inline-block;"></span>'
+      + '<span style="font-size:13px;font-weight:700;color:#1a1d23;letter-spacing:-0.2px;">' + escHtml(title) + '</span>'
+      + '</div>'
+      + content
+      + '</div>';
+  }
+
+  // Key Insights
+  var insightHTML = '';
+  if (insights.length > 0) {
+    insightHTML = '<ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:7px;">';
+    insights.forEach(function(pt) {
+      insightHTML += '<li style="display:flex;align-items:flex-start;gap:9px;font-size:13px;color:#374151;line-height:1.55;">'
+        + '<span style="width:6px;height:6px;border-radius:50%;background:#3d5a99;flex-shrink:0;margin-top:7px;"></span>'
+        + '<span>' + escHtml(String(pt)) + '</span>'
+        + '</li>';
+    });
+    insightHTML += '</ul>';
+  } else {
+    insightHTML = '<p style="font-size:13px;color:#6b7280;margin:0;">No insights returned.</p>';
+  }
+
+  // HMW Questions
+  var hmwHTML = '';
+  if (hmwQ.length > 0) {
+    hmwHTML = '<ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:7px;">';
+    hmwQ.forEach(function(q) {
+      hmwHTML += '<li style="display:flex;align-items:flex-start;gap:9px;font-size:13px;color:#374151;line-height:1.55;">'
+        + '<span style="font-size:10px;font-weight:700;color:#4a9e7c;flex-shrink:0;margin-top:3px;padding:2px 6px;background:#eef8f4;border-radius:3px;letter-spacing:0.3px;">HMW</span>'
+        + '<span>' + escHtml(String(q)) + '</span>'
+        + '</li>';
+    });
+    hmwHTML += '</ul>';
+  } else {
+    hmwHTML = '<p style="font-size:13px;color:#6b7280;margin:0;">No HMW questions returned.</p>';
+  }
+
+  // Summary
+  var summaryHTML = summaryText
+    ? '<p style="font-size:13px;color:#374151;line-height:1.7;margin:0;">' + escHtml(summaryText) + '</p>'
+    : '<p style="font-size:13px;color:#6b7280;margin:0;">No summary returned.</p>';
+
+  body.innerHTML =
+    '<div style="padding:20px 22px 4px;">'
+    + sectionWrap('Key Insights', '#3d5a99', insightHTML)
+    + sectionWrap('How Might We…', '#4a9e7c', hmwHTML)
+    + sectionWrap(summaryTitle, '#c9a024', summaryHTML)
+    + '</div>';
+}
+
+// ── Step ↔ Screen mapping ──────────────────────────────────────
+// Steps 1-2 live in screen-1 (the original main).
+// Steps 3-6 each have their own screen.
+// The `.layout` block hosts the sidebar + screen-1.
+// `#stages-outer` hosts screens 3-6 (full width, no sidebar).
+
+const STEP_SCREENS = { 1: 'screen-1', 2: 'screen-1', 3: 'screen-3', 4: 'screen-4', 5: 'screen-5', 6: 'screen-6' };
+let _currentStep = 1;
+
+function navigateTo(step) {
+  if (step < 1 || step > 6) return;
+  // Guard: if already on this step, don't re-run layout/render (prevents any recursive path)
+  if (step === _currentStep) return;
+  if (step >= 3 && !_aiResult) {
+    alert('Please run AI Analysis first (Step 1 → 2).');
+    return;
+  }
+
+  // Set state BEFORE any UI calls so no function sees a stale step
+  _currentStep = step;
+
+  // Show/hide layout vs stages-outer
+  const layout       = document.querySelector('.layout');
+  const stagesOuter  = document.getElementById('stages-outer');
+  const isFullScreen = step >= 3;
+
+  layout.style.display      = isFullScreen ? 'none' : 'flex';
+  stagesOuter.style.display = isFullScreen ? 'flex'  : 'none';
+
+  // Hide all stage screens, show correct one
+  document.querySelectorAll('.stage-screen').forEach(s => s.classList.remove('visible'));
+  const targetId = STEP_SCREENS[step];
+  if (targetId) document.getElementById(targetId).classList.add('visible');
+
+  // Update step pills + sidebar — calls original advanceToStep, never itself
+  setStepUI(step);
+
+  // Update bottom bar
+  syncBottomBar(step);
+
+  // Render infographic for this step (lazy, only when navigated to)
+  if (step === 3) renderInsightMap(_aiResult);
+  if (step === 4) renderPersonaMatrix(_aiResult);
+  if (step === 5) renderOpportunityMap(_aiResult);
+  if (step === 6) renderUXReport(_aiResult);
+
+  window.scrollTo(0, 0);
+}
+
+// Wire sidebar items to navigate
+document.querySelectorAll('.sidebar-item').forEach((el, i) => {
+  const step = i + 1;
+  el.style.cursor = 'pointer';
+  if (step >= 3) el.style.opacity = '0.45'; // locked until AI runs
+  el.addEventListener('click', () => navigateTo(step));
+});
+
+// Wire step pills to navigate
+document.querySelectorAll('.step-pill').forEach((el, i) => {
+  el.addEventListener('click', () => navigateTo(i + 1));
+});
+
+// ── Bottom bar sync ────────────────────────────────────────────
+function syncBottomBar(step) {
+  const bar     = document.querySelector('.bottom-bar');
+  const metaDiv = document.querySelector('.bottom-meta');
+  const actDiv  = document.querySelector('.bottom-actions');
+
+  if (step === 1) {
+    metaDiv.style.display = 'flex';
+    // onclick only — no separate addEventListener to avoid double-fire
+    actDiv.innerHTML = `
+      <button class="btn btn-secondary" onclick="saveDraft()">Save Draft</button>
+      <button id="run-btn" class="btn btn-primary" onclick="runAnalysis()">
+        <div class="btn-spinner"></div>
+        <svg class="btn-run-icon" viewBox="0 0 14 14"><path d="M7 1c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6 2.7-6 6-6zM5 7l2 2 4-4" stroke="#fff" stroke-width="1.5" fill="none"/></svg>
+        <span class="btn-run-label">Run AI Analysis →</span>
+      </button>`;
+  } else if (step === 2) {
+    metaDiv.style.display = 'none';
+    actDiv.innerHTML = `
+      <button class="btn btn-secondary" onclick="navigateTo(1)">← Edit Inputs</button>
+      <button class="btn btn-primary" onclick="navigateTo(3)" ${!_aiResult ? 'disabled' : ''}>
+        View Insight Map →
+      </button>`;
+  } else {
+    metaDiv.style.display = 'none';
+    actDiv.innerHTML = `<span style="font-size:12.5px;color:var(--text-muted)">Step ${step} of 6</span>`;
+  }
+}
+
+// ── setStepUI: pure UI update, never calls itself ──────────────
+// Calls the original advanceToStep (defined in the first <script>)
+// to update step pills and sidebar dots.
+// _currentStep is always set by the caller before this runs.
+function setStepUI(n) {
+  advanceToStep(n);   // original first-script function — no wrapper, no recursion
+}
+
+/* ================================================================
+   SHARED CANVAS UTILITIES
+================================================================ */
+
+function resizeCanvas(canvas) {
+  const parent = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const w = parent.offsetWidth  || 800;
+  const h = parent.offsetHeight || 480;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w, h };
+}
+
+function downloadCanvas(canvasId, filename) {
+  const canvas = document.getElementById(canvasId);
+  const link   = document.createElement('a');
+  link.download = filename;
+  link.href     = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// Tooltip helpers
+const tooltip = document.getElementById('canvas-tooltip');
+function showTip(html, x, y) {
+  tooltip.innerHTML  = html;
+  tooltip.style.display = 'block';
+  tooltip.style.left = (x + 14) + 'px';
+  tooltip.style.top  = (y - 10) + 'px';
+}
+function hideTip() { tooltip.style.display = 'none'; }
+
+// Palette
+const PALETTE = ['#3d5a99','#4a9e7c','#c9a024','#7b5ea7','#e05a5a','#6b84ba','#38b2ac','#ed8936'];
+
+/* ================================================================
+   CHART PNG CACHE — shared store for report injection & export
+================================================================ */
+const _chartPNGs = { insight: null, persona: null, opp: null };
+
+/* ================================================================
+   TASK 2 — INSIGHT MAP  (canvas physics simulation)
+================================================================ */
+
+let _insightAnim = null; // animation frame id
+
+function renderInsightMap(data) {
+  const canvas = document.getElementById('insight-canvas');
+  const { ctx, w, h } = resizeCanvas(canvas);
+
+  // Build nodes from insights.points + opportunities.items
+  const rawTerms = [
+    ...(data.insights?.points || []),
+    ...(data.opportunities?.items || [])
+  ];
+
+  // Extract short labels (first 4 words)
+  const nodes = rawTerms.map((t, i) => ({
+    id: i,
+    label: t.split(' ').slice(0, 4).join(' '),
+    full:  t,
+    r:     18 + Math.random() * 18,
+    color: PALETTE[i % PALETTE.length],
+    x: w * 0.2 + Math.random() * w * 0.6,
+    y: h * 0.2 + Math.random() * h * 0.6,
+    vx: 0, vy: 0
+  }));
+
+  // Connect adjacent nodes
+  const edges = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    edges.push([i, i + 1]);
+    if (i % 3 === 0 && i + 3 < nodes.length) edges.push([i, i + 3]);
+  }
+
+  // Physics constants
+  const REPULSION = 4800, SPRING_LEN = 140, SPRING_K = 0.04, DAMPING = 0.82;
+  let frame = 0;
+
+  function tick() {
+    // Repulsion
+    for (let a = 0; a < nodes.length; a++) {
+      for (let b = a + 1; b < nodes.length; b++) {
+        const dx = nodes[b].x - nodes[a].x;
+        const dy = nodes[b].y - nodes[a].y;
+        const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+        const f  = REPULSION / (d * d);
+        nodes[a].vx -= f * dx / d;
+        nodes[a].vy -= f * dy / d;
+        nodes[b].vx += f * dx / d;
+        nodes[b].vy += f * dy / d;
+      }
+    }
+    // Spring attraction along edges
+    edges.forEach(([ai, bi]) => {
+      const a = nodes[ai], b = nodes[bi];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+      const f  = (d - SPRING_LEN) * SPRING_K;
+      a.vx += f * dx / d;  a.vy += f * dy / d;
+      b.vx -= f * dx / d;  b.vy -= f * dy / d;
+    });
+    // Gravity to centre
+    nodes.forEach(n => {
+      n.vx += (w/2 - n.x) * 0.003;
+      n.vy += (h/2 - n.y) * 0.003;
+      n.vx *= DAMPING;
+      n.vy *= DAMPING;
+      n.x  = Math.max(n.r + 8, Math.min(w - n.r - 8, n.x + n.vx));
+      n.y  = Math.max(n.r + 8, Math.min(h - n.r - 8, n.y + n.vy));
+    });
+
+    draw();
+    frame++;
+    if (frame < 180) _insightAnim = requestAnimationFrame(tick);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+
+    // Background
+    ctx.fillStyle = '#f9f9fb';
+    ctx.fillRect(0, 0, w, h);
+
+    // Edges
+    edges.forEach(([ai, bi]) => {
+      const a = nodes[ai], b = nodes[bi];
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = 'rgba(107,132,186,0.22)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+
+    // Nodes
+    nodes.forEach(n => {
+      // Shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.12)';
+      ctx.shadowBlur  = 8;
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fillStyle = n.color + '22';
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.strokeStyle = n.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Label
+      const words = n.label.split(' ');
+      const fontSize = Math.max(9, Math.min(12, n.r * 0.55));
+      ctx.font = `600 ${fontSize}px 'Segoe UI', sans-serif`;
+      ctx.fillStyle = '#1a1d23';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (words.length <= 2) {
+        ctx.fillText(n.label, n.x, n.y);
+      } else {
+        const half = Math.ceil(words.length / 2);
+        ctx.fillText(words.slice(0, half).join(' '), n.x, n.y - fontSize * 0.65);
+        ctx.fillText(words.slice(half).join(' '),    n.x, n.y + fontSize * 0.65);
+      }
+    });
+
+    // Cache latest frame so report + export always get the settled state
+    try { _chartPNGs.insight = canvas.toDataURL('image/png'); } catch(e) {}
+  }
+
+  // Cancel previous animation if any
+  if (_insightAnim) cancelAnimationFrame(_insightAnim);
+  tick();
+
+  // Hover tooltip
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const hit = nodes.find(n => Math.hypot(n.x - mx, n.y - my) < n.r + 4);
+    if (hit) showTip(hit.full, e.clientX, e.clientY);
+    else hideTip();
+  };
+  canvas.onmouseleave = hideTip;
+}
+
+/* ================================================================
+   TASK 3 — PERSONA MATRIX  (2×2 canvas)
+================================================================ */
+
+function renderPersonaMatrix(data) {
+  const canvas = document.getElementById('persona-canvas');
+  const { ctx, w, h } = resizeCanvas(canvas);
+  const personas = data.personas || [];
+
+  ctx.clearRect(0, 0, w, h);
+
+  // BG
+  ctx.fillStyle = '#f9f9fb';
+  ctx.fillRect(0, 0, w, h);
+
+  const pad  = 64;
+  const mid  = { x: w / 2, y: h / 2 };
+  const box  = { x: pad, y: pad, w: w - pad*2, h: h - pad*2 };
+
+  // Quadrant fills
+  const quads = [
+    { x: box.x,    y: box.y,    w: box.w/2, h: box.h/2, color: '#f0faf6', label: 'Early adopter\nhigh need' },
+    { x: mid.x,    y: box.y,    w: box.w/2, h: box.h/2, color: '#eef1f8', label: 'Champion\nhigh need' },
+    { x: box.x,    y: mid.y,    w: box.w/2, h: box.h/2, color: '#fff8ee', label: 'Latent user\nlow need' },
+    { x: mid.x,    y: mid.y,    w: box.w/2, h: box.h/2, color: '#fff5f5', label: 'Resistant\nlow need' }
+  ];
+
+  quads.forEach(q => {
+    ctx.fillStyle = q.color;
+    ctx.fillRect(q.x, q.y, q.w, q.h);
+    ctx.font = '11px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(107,114,128,0.55)';
+    ctx.textAlign = 'center';
+    const lines = q.label.split('\n');
+    const lx = q.x + q.w / 2, ly = q.y + 14;
+    lines.forEach((l, i) => ctx.fillText(l, lx, ly + i * 14));
+  });
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(226,228,233,0.9)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(box.x, box.y, box.w, box.h);
+  ctx.beginPath();
+  ctx.moveTo(mid.x, box.y); ctx.lineTo(mid.x, box.y + box.h);
+  ctx.moveTo(box.x, mid.y); ctx.lineTo(box.x + box.w, mid.y);
+  ctx.stroke();
+
+  // Axis labels
+  ctx.font = '600 11.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.textAlign = 'center';
+  ctx.fillText('← Low Adoption Readiness       High →', w / 2, box.y + box.h + 18);
+
+  ctx.save();
+  ctx.translate(14, h / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('← Low Need Intensity       High →', 0, 0);
+  ctx.restore();
+
+  // Place personas – spread them deterministically in quadrants
+  personas.forEach((p, i) => {
+    // Assign quadrant by index cycling, then add small jitter
+    const qIdx = i % 4;
+    const q = quads[qIdx];
+    const jx = (i * 37 + 40) % (q.w * 0.55) + q.w * 0.2;
+    const jy = (i * 53 + 40) % (q.h * 0.55) + q.h * 0.2;
+    const cx = q.x + jx, cy = q.y + jy;
+    const col = PALETTE[i % PALETTE.length];
+    const av  = 26;
+
+    // Avatar circle
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur  = 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, av, 0, Math.PI * 2);
+    ctx.fillStyle = col + '33';
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Initial
+    ctx.font = `700 14px "Segoe UI", sans-serif`;
+    ctx.fillStyle = col;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((p.name || 'P')[0].toUpperCase(), cx, cy);
+
+    // Name tag
+    const nameLabel = p.name || `Persona ${i+1}`;
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#1a1d23';
+    ctx.textBaseline = 'top';
+    ctx.fillText(nameLabel, cx, cy + av + 5);
+
+    // Role tag
+    if (p.role) {
+      ctx.font = '10px "Segoe UI", sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(p.role.split('/')[0].trim().slice(0, 20), cx, cy + av + 18);
+    }
+  });
+
+  // Cache for report injection + PNG export
+  try { _chartPNGs.persona = canvas.toDataURL('image/png'); } catch(e) {}
+
+  // Hover on personas
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const hit = personas.find((p, i) => {
+      const qIdx = i % 4, q = quads[qIdx];
+      const jx = (i*37+40) % (q.w*0.55) + q.w*0.2;
+      const jy = (i*53+40) % (q.h*0.55) + q.h*0.2;
+      const cx = q.x+jx, cy = q.y+jy;
+      return Math.hypot(cx-mx, cy-my) < 30;
+    });
+    if (hit) showTip(`<strong>${hit.name}</strong><br>${hit.role}<br><em>${hit.goals}</em>`, e.clientX, e.clientY);
+    else hideTip();
+  };
+  canvas.onmouseleave = hideTip;
+}
+
+/* ================================================================
+   TASK 4 — 기회 지도  OPPORTUNITY MAP (Impact × Effort quadrant)
+================================================================ */
+
+function renderOpportunityMap(data) {
+  const canvas = document.getElementById('opp-canvas');
+  const { ctx, w, h } = resizeCanvas(canvas);
+
+  const items = (data.opportunities?.items || []).map((label, i) => ({
+    label,
+    // Deterministic pseudo-random scores 0–1 based on string hash
+    impact: pseudoRand(label + 'impact', i),
+    effort: pseudoRand(label + 'effort', i)
+  }));
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9f9fb';
+  ctx.fillRect(0, 0, w, h);
+
+  const pad = 64;
+  const box = { x: pad, y: pad, w: w - pad*2, h: h - pad*2 };
+  const mid = { x: box.x + box.w/2, y: box.y + box.h/2 };
+
+  // Quadrant definitions (impact up = good, effort right = bad)
+  const qdefs = [
+    { x: box.x, y: box.y,  w: box.w/2, h: box.h/2, color: '#f0faf6', title: '🏆  Quick Win',  sub: 'High Impact · Low Effort' },
+    { x: mid.x, y: box.y,  w: box.w/2, h: box.h/2, color: '#eef1f8', title: '🎯  Strategic', sub: 'High Impact · High Effort' },
+    { x: box.x, y: mid.y,  w: box.w/2, h: box.h/2, color: '#fffbf0', title: '📌  Fill-in',   sub: 'Low Impact · Low Effort' },
+    { x: mid.x, y: mid.y,  w: box.w/2, h: box.h/2, color: '#fff5f5', title: '🚫  Avoid',     sub: 'Low Impact · High Effort' }
+  ];
+
+  qdefs.forEach(q => {
+    ctx.fillStyle = q.color;
+    ctx.fillRect(q.x, q.y, q.w, q.h);
+    ctx.font = '700 12.5px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.textAlign = 'center';
+    ctx.fillText(q.title, q.x + q.w/2, q.y + 20);
+    ctx.font = '10px "Segoe UI", sans-serif';
+    ctx.fillStyle = 'rgba(107,114,128,0.7)';
+    ctx.fillText(q.sub, q.x + q.w/2, q.y + 34);
+  });
+
+  // Grid
+  ctx.strokeStyle = '#e2e4e9';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(box.x, box.y, box.w, box.h);
+  ctx.beginPath();
+  ctx.moveTo(mid.x, box.y); ctx.lineTo(mid.x, box.y + box.h);
+  ctx.moveTo(box.x, mid.y); ctx.lineTo(box.x + box.w, mid.y);
+  ctx.setLineDash([4,3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Axis labels
+  ctx.font = '600 11.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.textAlign = 'center';
+  ctx.fillText('← Low Effort                                          High Effort →', w/2, box.y + box.h + 18);
+  ctx.save();
+  ctx.translate(14, h/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('← Low Impact                                          High Impact →', 0, 0);
+  ctx.restore();
+
+  // Plot nodes
+  // X = effort (0=left=low, 1=right=high), Y = impact (0=bottom=low, 1=top=high)
+  items.forEach((node, i) => {
+    const px = box.x + node.effort * box.w;
+    const py = box.y + (1 - node.impact) * box.h;   // invert Y
+    const col = PALETTE[i % PALETTE.length];
+    const nr  = 14;
+
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur  = 6;
+    ctx.beginPath();
+    ctx.arc(px, py, nr, 0, Math.PI * 2);
+    ctx.fillStyle = col + '33';
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Number label inside dot
+    ctx.font = `700 10px "Segoe UI", sans-serif`;
+    ctx.fillStyle = col;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, px, py);
+
+    // Short text alongside
+    const shortLabel = node.label.split(' ').slice(0, 3).join(' ');
+    ctx.font = `500 10px "Segoe UI", sans-serif`;
+    ctx.fillStyle = '#374151';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(shortLabel, px + nr + 4, py);
+  });
+
+  // Cache for report injection + PNG export
+  try { _chartPNGs.opp = canvas.toDataURL('image/png'); } catch(e) {}
+
+  // Hover
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const hit = items.find(node => {
+      const px = box.x + node.effort * box.w;
+      const py = box.y + (1 - node.impact) * box.h;
+      return Math.hypot(px - mx, py - my) < 20;
+    });
+    if (hit) showTip(`${hit.label}<br><small>Impact ${(hit.impact*10).toFixed(1)} · Effort ${(hit.effort*10).toFixed(1)}</small>`, e.clientX, e.clientY);
+    else hideTip();
+  };
+  canvas.onmouseleave = hideTip;
+}
+
+// Simple deterministic pseudo-random 0–1 from string
+function pseudoRand(str, salt) {
+  let h = salt * 2654435769;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 2246822519);
+  h = h >>> 0;
+  return (h % 1000) / 1000;
+}
+
+/* ================================================================
+   TASK 6 — UX REPORT SCREEN
+================================================================ */
+
+function renderUXReport(data) {
+  const wrap = document.getElementById('report-content');
+  if (!data) { wrap.innerHTML = '<p>No analysis data.</p>'; return; }
+
+  const ins   = data.insights    || {};
+  const pers  = data.personas    || [];
+  const opps  = data.opportunities || {};
+  const sum   = data.summary     || {};
+
+  // ── Ensure all charts have been rendered at least once so PNGs are cached ──
+  // Renders to hidden canvases (offsetWidth=0 → default 800×480) — no visual flicker.
+  if (!_chartPNGs.insight) renderInsightMap(data);
+  if (!_chartPNGs.persona)  renderPersonaMatrix(data);
+  if (!_chartPNGs.opp)      renderOpportunityMap(data);
+
+  // ── Build chart image rows (only if PNG is available) ──────────────────────
+  function chartSection(title, pngKey) {
+    const src = _chartPNGs[pngKey];
+    if (!src) return '';
+    return `
+      <div class="report-card report-card-full" style="padding:0;overflow:hidden;">
+        <div style="padding:12px 20px 10px;background:#f4f4f6;border-bottom:1px solid #e2e4e9;">
+          <div class="report-card-label" style="margin-bottom:0">${title}</div>
+        </div>
+        <div style="padding:16px 20px;">
+          <img src="${src}" alt="${title}"
+               style="width:100%;border-radius:6px;display:block;border:1px solid #e2e4e9;" />
+        </div>
+      </div>`;
+  }
+
+  // ── Write report into #report-container (creates it if absent) ──────────────
+  const containerHtml = `
+    <div id="report-container"
+         style="background:#fff;font-family:'Segoe UI',system-ui,sans-serif;padding:0;color:#1a1d23;">
+
+      <!-- Cover row -->
+      <div style="background:#1a1d23;color:#fff;padding:28px 32px;border-radius:10px 10px 0 0;margin-bottom:0;">
+        <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#8a8f9d;margin-bottom:6px;">
+          UX RESEARCH REPORT · ${new Date().toLocaleDateString()}
+        </div>
+        <div style="font-size:22px;font-weight:700;letter-spacing:-0.3px;">
+          ${escHtml(lastPayload?.serviceName || 'Untitled Service')}
+        </div>
+        <div style="font-size:13px;color:#a0a7b4;margin-top:4px;">
+          Target: ${escHtml(lastPayload?.targetUsers || '—')}
+        </div>
+      </div>
+
+      <div class="report-grid" style="padding:20px;gap:16px;display:grid;grid-template-columns:1fr 1fr;">
+
+        <div class="report-card report-card-full" style="grid-column:1/-1;">
+          <div class="report-card-label">Executive Summary</div>
+          <div class="report-card-value">${escHtml(sum.overview || '—')}</div>
+        </div>
+
+        <div class="report-card">
+          <div class="report-card-label">Key UX Insights (${(ins.points||[]).length})</div>
+          <div class="report-card-value">
+            <ul style="list-style:none;padding:0;margin:0">
+              ${(ins.points||[]).map(p=>`<li style="padding:3px 0 3px 12px;position:relative;font-size:13px"><span style="position:absolute;left:0;color:#6b84ba">›</span>${escHtml(p)}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+
+        <div class="report-card">
+          <div class="report-card-label">Personas (${pers.length})</div>
+          <div class="report-card-value">
+            ${pers.map(p=>`<div style="margin-bottom:8px"><strong style="font-size:13px">${escHtml(p.name)}</strong> <span style="color:#6b7280;font-size:12px">· ${escHtml(p.role)}</span><br><span style="font-size:12.5px;color:#6b7280">${escHtml(p.goals)}</span></div>`).join('')}
+          </div>
+        </div>
+
+        <div class="report-card report-card-full" style="grid-column:1/-1;">
+          <div class="report-card-label">Opportunities</div>
+          <div class="report-card-value">
+            ${(opps.items||[]).map(o=>`<span style="display:inline-flex;align-items:center;gap:5px;background:#fff8ee;border:1px solid #f0e2b0;color:#8a6e1a;border-radius:20px;padding:3px 10px;font-size:12px;margin:3px 4px 3px 0">✦ ${escHtml(o)}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="report-card report-card-full" style="grid-column:1/-1;">
+          <div class="report-card-label">Recommended Next Steps</div>
+          <div class="report-card-value">
+            <ol class="report-next-steps">
+              ${(sum.nextSteps||[]).map((s,i)=>`<li><span class="report-step-num">${i+1}</span>${escHtml(s)}</li>`).join('')}
+            </ol>
+          </div>
+        </div>
+
+      </div><!-- /report-grid inner -->
+
+      <!-- ── Chart images injected from cached canvases ── -->
+      <div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:16px;">
+        ${chartSection('Insight Map', 'insight')}
+        ${chartSection('Persona Matrix', 'persona')}
+        ${chartSection('기회 지도 (Opportunity Map)', 'opp')}
+      </div>
+
+    </div><!-- /#report-container -->`;
+
+  wrap.innerHTML = containerHtml;
+}
+
+function downloadReportJSON() {
+  if (!_aiResult) return;
+  const blob = new Blob([JSON.stringify({ meta: lastPayload, analysis: _aiResult }, null, 2)], { type: 'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'ux-research-report.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function copyReportJSON() {
+  if (!_aiResult) return;
+  navigator.clipboard.writeText(JSON.stringify({ meta: lastPayload, analysis: _aiResult }, null, 2))
+    .then(() => { alert('JSON copied to clipboard!'); })
+    .catch(() => { alert('Copy failed — try the Download button.'); });
+}
+
+/* ── Resize observer: re-render active canvas on resize ─────── */
+const _resizeObserver = new ResizeObserver(() => {
+  if (_currentStep === 3 && _aiResult) renderInsightMap(_aiResult);
+  if (_currentStep === 4 && _aiResult) renderPersonaMatrix(_aiResult);
+  if (_currentStep === 5 && _aiResult) renderOpportunityMap(_aiResult);
+});
+['screen-3','screen-4','screen-5'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) _resizeObserver.observe(el);
+});
+</script>
+
+<script>
+/* ================================================================
+   EXPORT MODULE — PDF, PNG per chart
+   All functions are additive; nothing from previous scripts is
+   overwritten or redeclared here.
+================================================================ */
+
+/* ── Shared: ensure a chart is rendered before exporting ───────
+   If the cache is empty (chart was never navigated to) we render
+   it once to the hidden canvas (defaults to 800×480 when off-screen).
+   This is safe — the canvas is in the DOM, just in a hidden panel. */
+function _ensureChartRendered(key) {
+  if (!_aiResult) return;
+  if (key === 'insight' && !_chartPNGs.insight) renderInsightMap(_aiResult);
+  if (key === 'persona' && !_chartPNGs.persona)  renderPersonaMatrix(_aiResult);
+  if (key === 'opp'     && !_chartPNGs.opp)       renderOpportunityMap(_aiResult);
+}
+
+/* ── 3. Individual chart PNG exports ────────────────────────────
+   Named functions as required.  They reuse the cached data URL
+   so charts are never regenerated redundantly. */
+
+function exportInsightPNG() {
+  _ensureChartRendered('insight');
+  // Wait one animation frame to let physics settle if just triggered
+  requestAnimationFrame(() => {
+    if (_chartPNGs.insight) {
+      _downloadDataURL(_chartPNGs.insight, 'insight-map.png');
+    } else {
+      downloadCanvas('insight-canvas', 'insight-map.png');
+    }
+  });
+}
+
+function exportPersonaPNG() {
+  _ensureChartRendered('persona');
+  if (_chartPNGs.persona) {
+    _downloadDataURL(_chartPNGs.persona, 'persona-matrix.png');
+  } else {
+    downloadCanvas('persona-canvas', 'persona-matrix.png');
+  }
+}
+
+function exportOpportunityPNG() {
+  _ensureChartRendered('opp');
+  if (_chartPNGs.opp) {
+    _downloadDataURL(_chartPNGs.opp, 'opportunity-map.png');
+  } else {
+    downloadCanvas('opp-canvas', 'opportunity-map.png');
+  }
+}
+
+/* Helper: trigger browser download from a data URL */
+function _downloadDataURL(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  a.click();
+}
+
+/* ── 1. PDF Export ──────────────────────────────────────────────
+   Targets #report-container (created by renderUXReport).
+   Uses html2pdf.js loaded from CDN.
+   Filename: UX_Report_[service_name].pdf                       */
+
+function exportReportPDF() {
+  const container = document.getElementById('report-container');
+  if (!container) {
+    alert('Please navigate to the UX Report step first to generate the report.');
+    return;
+  }
+
+  // Disable button to prevent double-click during export
+  const btn = document.getElementById('btn-pdf-export');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating PDF…'; }
+
+  // Sanitise service name for filename
+  const rawName = (lastPayload?.serviceName || 'report').replace(/[^a-zA-Z0-9가-힣_\- ]/g, '').trim().replace(/\s+/g, '_');
+  const filename = `UX_Report_${rawName || 'export'}.pdf`;
+
+  // html2pdf options — A4, 2× resolution for crisp charts
+  const opt = {
+    margin:      [10, 10, 10, 10],     // mm: top, right, bottom, left
+    filename,
+    image:       { type: 'jpeg', quality: 0.97 },
+    html2canvas: {
+      scale:      2,                   // 2× = high-DPI output
+      useCORS:    true,
+      logging:    false,
+      backgroundColor: '#ffffff'
+    },
+    jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  // Verify html2pdf loaded
+  if (typeof html2pdf === 'undefined') {
+    alert('PDF library is still loading — please try again in a moment.');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> 보고서 다운로드 (PDF)'; }
+    return;
+  }
+
+  html2pdf()
+    .set(opt)
+    .from(container)
+    .save()
+    .then(() => {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> 보고서 다운로드 (PDF)'; }
+    })
+    .catch(err => {
+      console.error('PDF export error:', err);
+      alert('PDF generation failed: ' + (err.message || err));
+      if (btn) { btn.disabled = false; btn.textContent = '보고서 다운로드 (PDF)'; }
+    });
+}
+</script>
+</body>
+</html>
